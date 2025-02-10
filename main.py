@@ -20,14 +20,21 @@ def process_img(img, face_detection):
             y1 = int(y1 * H)
             w = int(w * W)
             h = int(h * H)
+
+            x1 = max(0, min(x1, W - 1))
+            y1 = max(0, min(y1, H - 1))
+            w = max(1, min(w, W - x1))
+            h = max(1, min(h, H - y1))
+
+            # print(f"Face detected at: x1={x1}, y1={y1}, w={w}, h={h}")
             
             img[y1:y1 + h, x1:x1 + w, :] = cv2.blur(img[y1:y1 + h, x1:x1 + w, :], (50, 50))
 
     return img
 
 args = argparse.ArgumentParser()
-args.add_argument("--mode", default='video')
-args.add_argument("--filePath", default='./data/girlface2.mov')
+args.add_argument("--mode", default='webcam')
+args.add_argument("--filePath", default=None)
 args = args.parse_args()
 
 output_dir =  './output'
@@ -72,3 +79,20 @@ with mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence
 
         cap.release()
         output_video.release()
+
+    elif args.mode in ["webcam"]:
+        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        ret, frame = cap.read()
+
+        while ret:
+            frame = process_img(frame, face_detection)
+            
+            cv2.imshow('frame', frame)
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+            ret, frame = cap.read()
+
+        cap.release()
+        cv2.destroyAllWindows()
