@@ -2,6 +2,13 @@ import os
 import cv2
 import mediapipe as mp
 import argparse
+import numpy as np
+import pyvirtualcam
+import time
+
+C922_WIDTH = 1280
+C922_HEIGHT = 720
+C922_FPS = 60
 
 def process_img(img, face_detection):
     H, W, _ = img.shape
@@ -33,7 +40,7 @@ def process_img(img, face_detection):
     return img
 
 args = argparse.ArgumentParser()
-args.add_argument("--mode", default='webcam')
+args.add_argument("--mode", default='virtualcam')
 args.add_argument("--filePath", default=None)
 args = args.parse_args()
 
@@ -82,17 +89,51 @@ with mp_face_detection.FaceDetection(model_selection=0, min_detection_confidence
 
     elif args.mode in ["webcam"]:
         cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-        ret, frame = cap.read()
+        
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, C922_WIDTH)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, C922_HEIGHT)
+        cap.set(cv2.CAP_PROP_FPS, C922_FPS)  # May not work on all cameras
 
-        while ret:
-            frame = process_img(frame, face_detection)
-            
-            cv2.imshow('frame', frame)
+        prev = time.time()
+
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Failed to grab frame")
+                break
+
+            time_elapsed = time.time() - prev
+            if time_elapsed >= (1.0 / C922_FPS):
+                prev = time.time()  # Reset time
+
+                frame = process_img(frame, face_detection)
+                cv2.imshow('frame', frame)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
-            ret, frame = cap.read()
+        cap.release()
+        cv2.destroyAllWindows()
+
+
+    elif args.mode in ["virtualcam"]:
+        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, C922_WIDTH)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, C922_HEIGHT)
+
+        fmt = pyvirtualcam.PixelFormat.BGR
+        with pyvirtualcam.Camera(width=C922_WIDTH, height=C922_HEIGHT, fps=C922_FPS, fmt=fmt) as cam:
+            # print(f"Using virtual camera: {cam.device}")
+
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    print("Failed to grab frame")
+                    break
+
+                frame = process_img(frame, face_detection)
+                cam.send(frame)
+                cam.sleep_until_next_frame()
 
         cap.release()
         cv2.destroyAllWindows()
